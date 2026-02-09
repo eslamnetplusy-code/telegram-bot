@@ -1,10 +1,10 @@
 <?php
 
 // ====== إعدادات من Railway Variables ======
-$botToken = getenv("BOT_TOKEN");
-$apiUrl   = getenv("API_URL");
-$apiUser  = getenv("API_USER");
-$apiToken = getenv("API_TOKEN");
+$botToken = getenv("8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0");
+$apiUrl   = getenv("http://185.112.200.88/yemen_robot");
+$apiUser  = getenv("u_3862970154");
+$apiToken = getenv("fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo");
 
 // ====== استقبال التحديث من تيليجرام ======
 $update = json_decode(file_get_contents("php://input"), true);
