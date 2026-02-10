@@ -1,22 +1,22 @@
 <?php
-http_response_code(200);
 
-$BOT_TOKEN = getenv("BOT_TOKEN");
-$API_URL = "https://api.telegram.org/bot$BOT_TOKEN/";
-$ADMIN_ID = 1442087030;
+// ================= CONFIG =================
+$botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
-// قراءة التحديث
+$apiUrl   = "https://megatec-center.com/api/request";
+$apiUser  = "u_3862970154";
+$apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
+
+// ================= READ UPDATE =================
 $update = json_decode(file_get_contents("php://input"), true);
+if (!isset($update["message"])) exit;
 
-// ملف تخزين الحالات
-$stateFile = "state.json";
-$states = file_exists($stateFile) ? json_decode(file_get_contents($stateFile), true) : [];
+$chat_id = $update["message"]["chat"]["id"];
+$text    = trim($update["message"]["text"] ?? "");
 
-// ===============================
-// دوال مساعدة
-// ===============================
+// ================= SEND MESSAGE =================
 function sendMessage($chat_id, $text, $keyboard = null) {
-    global $API_URL;
+    global $botToken;
 
     $data = [
         "chat_id" => $chat_id,
@@ -28,141 +28,83 @@ function sendMessage($chat_id, $text, $keyboard = null) {
         $data["reply_markup"] = json_encode($keyboard);
     }
 
-    file_get_contents($API_URL . "sendMessage?" . http_build_query($data));
+    file_get_contents(
+        "https://api.telegram.org/bot$botToken/sendMessage?" .
+        http_build_query($data)
+    );
 }
 
-function saveStates($states) {
-    file_put_contents("state.json", json_encode($states));
-}
-
-// ===============================
-// الأزرار الرئيسية للمستخدم
-// ===============================
-$mainKeyboard = [
-    "inline_keyboard" => [
+// ================= START =================
+if ($text === "/start") {
+    sendMessage(
+        $chat_id,
+        "✅ <b>أهلاً بك</b>\nاختر الباقة:",
         [
-            ["text" => "⭐ شحن Telegram Premium", "callback_data" => "tg_premium"]
-        ],
-        [
-            ["text" => "☎️ الدعم الفني", "callback_data" => "support"]
+            "keyboard" => [
+                ["🔹 10 شدّات"],
+                ["🔹 60 شدّة"]
+            ],
+            "resize_keyboard" => true
         ]
-    ]
-];
-
-// ===============================
-// معالجة الرسائل النصية
-// ===============================
-if (isset($update["message"])) {
-
-    $chat_id = $update["message"]["chat"]["id"];
-    $text = trim($update["message"]["text"] ?? "");
-
-    if ($text === "/start") {
-        sendMessage($chat_id, "👋 أهلاً بك\n\nاختر الخدمة المطلوبة:", $mainKeyboard);
-        exit;
-    }
-
-    // إدخال اسم المستخدم
-    if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "username") {
-        $states[$chat_id]["username"] = $text;
-        $states[$chat_id]["step"] = "duration";
-        saveStates($states);
-
-        sendMessage(
-            $chat_id,
-            "⏳ اختر مدة الاشتراك:\n\n1️⃣ شهر\n3️⃣ ثلاثة أشهر\n12️⃣ سنة\n\n✍️ اكتب الرقم فقط"
-        );
-        exit;
-    }
-
-    // إدخال المدة
-    if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "duration") {
-        $duration = $text;
-        $username = $states[$chat_id]["username"];
-
-        unset($states[$chat_id]);
-        saveStates($states);
-
-        // أزرار الأدمن
-        $adminKeyboard = [
-            "inline_keyboard" => [
-                [
-                    ["text" => "✅ قبول", "callback_data" => "approve|$chat_id"],
-                    ["text" => "🔄 قيد التجهيز", "callback_data" => "processing|$chat_id"]
-                ],
-                [
-                    ["text" => "🟢 تم التنفيذ", "callback_data" => "done|$chat_id"]
-                ],
-                [
-                    ["text" => "❌ رفض", "callback_data" => "reject|$chat_id"]
-                ]
-            ]
-        ];
-
-        // إرسال الطلب للأدمن
-        sendMessage(
-            $ADMIN_ID,
-            "📩 <b>طلب شحن جديد</b>\n\n".
-            "👤 المستخدم: @$username\n".
-            "⭐ الخدمة: Telegram Premium\n".
-            "⏳ المدة: $duration\n".
-            "🆔 Chat ID: $chat_id",
-            $adminKeyboard
-        );
-
-        sendMessage($chat_id, "✅ تم استلام طلبك وسيتم مراجعته قريبًا 🌟");
-        exit;
-    }
+    );
+    exit;
 }
 
-// ===============================
-// معالجة الأزرار
-// ===============================
-if (isset($update["callback_query"])) {
+// ================= اختيار الباقة =================
+$service = null;
 
-    $data = $update["callback_query"]["data"];
-    $admin_chat = $update["callback_query"]["message"]["chat"]["id"];
-
-    // أزرار المستخدم
-    if ($data === "tg_premium") {
-        $states[$admin_chat] = ["step" => "username"];
-        saveStates($states);
-
-        sendMessage($admin_chat, "⭐ أرسل اسم المستخدم أو الرقم:");
-        exit;
-    }
-
-    if ($data === "support") {
-        sendMessage($admin_chat, "☎️ الدعم الفني\nراسلنا في أي وقت");
-        exit;
-    }
-
-    // أزرار الأدمن فقط
-    if ($admin_chat == $ADMIN_ID) {
-
-        list($action, $user_chat) = explode("|", $data);
-
-        if ($action === "approve") {
-            sendMessage($user_chat, "✅ تم <b>قبول</b> طلبك وسيتم التنفيذ قريبًا");
-            sendMessage($admin_chat, "✔ تم قبول الطلب");
-        }
-
-        if ($action === "processing") {
-            sendMessage($user_chat, "🔄 طلبك <b>قيد التجهيز</b> حاليًا");
-            sendMessage($admin_chat, "🔄 تم تحديث الحالة إلى قيد التجهيز");
-        }
-
-        if ($action === "done") {
-            sendMessage($user_chat, "🎉 <b>تم تنفيذ طلبك بنجاح</b>\n\nشكرًا لاستخدامك خدمتنا 🌟");
-            sendMessage($admin_chat, "🟢 تم تنفيذ الطلب بنجاح");
-        }
-
-        if ($action === "reject") {
-            sendMessage(
-                $user_chat,
-                "❌ نعتذر، تم <b>رفض</b> الطلب\n\nللاستفسار تواصل مع الدعم"
-            );
-            sendMessage($admin_chat, "❌ تم رفض الطلب");
-        }
-    }
+if ($text === "🔹 10 شدّات") {
+    $service = 1114;
+} elseif ($text === "🔹 60 شدّة") {
+    $service = 1101;
 }
+
+if ($service) {
+    file_put_contents("order_$chat_id.txt", $service);
+    sendMessage($chat_id, "✍️ أرسل الآن <b>Player ID</b>");
+    exit;
+}
+
+// ================= استقبال Player ID =================
+if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
+
+    $service = file_get_contents("order_$chat_id.txt");
+    unlink("order_$chat_id.txt");
+
+    $reference = time() . rand(100,999);
+
+    // ========== CURL REQUEST ==========
+    $ch = curl_init($apiUrl);
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer $apiToken"
+        ],
+        CURLOPT_POSTFIELDS => [
+            "request"   => "neworder",
+            "service"   => $service,
+            "reference" => $reference,
+            "player_id" => $text
+        ]
+    ]);
+
+    $response = curl_exec($ch);
+    $error    = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        sendMessage($chat_id, "❌ خطأ اتصال:\n$error");
+        exit;
+    }
+
+    sendMessage(
+        $chat_id,
+        "✅ <b>تم إرسال الطلب بنجاح</b>\n\n<pre>$response</pre>"
+    );
+    exit;
+}
+
+// ================= DEFAULT =================
+sendMessage($chat_id, "❗️الرجاء إرسال /start للبدء");
