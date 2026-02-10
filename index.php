@@ -1,18 +1,22 @@
 <?php
+http_response_code(200);
 
 // ================= CONFIG =================
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
 $apiUrl   = "https://megatec-center.com/api/request";
-$apiUser  = "u_3862970154";
+$apiUser  = "u_3862970154"; // (غير مستخدم الآن لكن محفوظ)
 $apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
 
 // ================= READ UPDATE =================
 $update = json_decode(file_get_contents("php://input"), true);
-if (!isset($update["message"])) exit;
 
-$chat_id = $update["message"]["chat"]["id"];
-$text    = trim($update["message"]["text"] ?? "");
+$message  = $update["message"] ?? null;
+$callback = $update["callback_query"] ?? null;
+
+if (!$message && !$callback) {
+    exit;
+}
 
 // ================= SEND MESSAGE =================
 function sendMessage($chat_id, $text, $keyboard = null) {
@@ -34,77 +38,82 @@ function sendMessage($chat_id, $text, $keyboard = null) {
     );
 }
 
-// ================= START =================
-if ($text === "/start") {
-    sendMessage(
-        $chat_id,
-        "✅ <b>أهلاً بك</b>\nاختر الباقة:",
-        [
-            "keyboard" => [
-                ["🔹 10 شدّات"],
-                ["🔹 60 شدّة"]
-            ],
-            "resize_keyboard" => true
-        ]
-    );
-    exit;
-}
+// ================= START & TEXT =================
+if ($message) {
 
-// ================= اختيار الباقة =================
-$service = null;
+    $chat_id = $message["chat"]["id"];
+    $text    = trim($message["text"] ?? "");
 
-if ($text === "🔹 10 شدّات") {
-    $service = 1114;
-} elseif ($text === "🔹 60 شدّة") {
-    $service = 1101;
-}
-
-if ($service) {
-    file_put_contents("order_$chat_id.txt", $service);
-    sendMessage($chat_id, "✍️ أرسل الآن <b>Player ID</b>");
-    exit;
-}
-
-// ================= استقبال Player ID =================
-if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
-
-    $service = file_get_contents("order_$chat_id.txt");
-    unlink("order_$chat_id.txt");
-
-    $reference = time() . rand(100,999);
-
-    // ========== CURL REQUEST ==========
-    $ch = curl_init($apiUrl);
-
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer $apiToken"
-        ],
-        CURLOPT_POSTFIELDS => [
-            "request"   => "neworder",
-            "service"   => $service,
-            "reference" => $reference,
-            "player_id" => $text
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $error    = curl_error($ch);
-    curl_close($ch);
-
-    if ($error) {
-        sendMessage($chat_id, "❌ خطأ اتصال:\n$error");
+    // /start
+    if ($text === "/start") {
+        sendMessage(
+            $chat_id,
+            "👋 <b>مرحباً بك</b>\n\nاختر باقة شحن شدّات ببجي:",
+            [
+                "keyboard" => [
+                    ["🎮 10 شدّات"],
+                    ["🎮 60 شدّة"]
+                ],
+                "resize_keyboard" => true
+            ]
+        );
         exit;
     }
 
-    sendMessage(
-        $chat_id,
-        "✅ <b>تم إرسال الطلب بنجاح</b>\n\n<pre>$response</pre>"
-    );
-    exit;
-}
+    // اختيار الباقة
+    if ($text === "🎮 10 شدّات") {
+        file_put_contents("order_$chat_id.txt", "1114");
+        sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
+        exit;
+    }
 
-// ================= DEFAULT =================
-sendMessage($chat_id, "❗️الرجاء إرسال /start للبدء");
+    if ($text === "🎮 60 شدّة") {
+        file_put_contents("order_$chat_id.txt", "1101");
+        sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
+        exit;
+    }
+
+    // استقبال Player ID
+    if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
+
+        $service = file_get_contents("order_$chat_id.txt");
+        unlink("order_$chat_id.txt");
+
+        $reference = time() . rand(100,999);
+
+        // ===== CURL POST =====
+        $ch = curl_init($apiUrl);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: Bearer $apiToken"
+            ],
+            CURLOPT_POSTFIELDS => [
+                "request"   => "neworder",
+                "service"   => $service,
+                "reference" => $reference,
+                "player_id" => $text
+            ]
+        ]);
+
+        $response = curl_exec($ch);
+        $error    = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            sendMessage($chat_id, "❌ خطأ في الاتصال:\n$error");
+            exit;
+        }
+
+        sendMessage(
+            $chat_id,
+            "✅ <b>تم إرسال طلب الشحن</b>\n\n📄 رد النظام:\n<pre>$response</pre>"
+        );
+        exit;
+    }
+
+    // أي رسالة أخرى
+    sendMessage($chat_id, "ℹ️ للبدء أرسل /start");
+}
