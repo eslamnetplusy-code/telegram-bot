@@ -8,7 +8,7 @@ $ADMIN_ID = 1442087030;
 // قراءة التحديث
 $update = json_decode(file_get_contents("php://input"), true);
 
-// ملف تخزين مؤقت بسيط للحالة
+// ملف تخزين الحالة
 $stateFile = "state.json";
 $states = file_exists($stateFile) ? json_decode(file_get_contents($stateFile), true) : [];
 
@@ -36,7 +36,7 @@ function saveStates($states) {
 }
 
 // ===============================
-// أزرار البداية
+// الأزرار الرئيسية
 // ===============================
 $mainKeyboard = [
     "inline_keyboard" => [
@@ -50,37 +50,27 @@ $mainKeyboard = [
 ];
 
 // ===============================
-// معالجة الرسائل النصية
+// معالجة الرسائل
 // ===============================
 if (isset($update["message"])) {
 
     $chat_id = $update["message"]["chat"]["id"];
     $text = trim($update["message"]["text"] ?? "");
 
-    // /start
     if ($text === "/start") {
-        sendMessage(
-            $chat_id,
-            "👋 أهلاً بك\n\nاختر الخدمة المطلوبة:",
-            $mainKeyboard
-        );
+        sendMessage($chat_id, "👋 أهلاً بك\n\nاختر الخدمة:", $mainKeyboard);
         exit;
     }
 
-    // استقبال اسم المستخدم
     if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "username") {
         $states[$chat_id]["username"] = $text;
         $states[$chat_id]["step"] = "duration";
         saveStates($states);
 
-        sendMessage(
-            $chat_id,
-            "⏳ اختر مدة الاشتراك:\n\n1️⃣ شهر\n3️⃣ ثلاثة أشهر\n12️⃣ سنة\n\nاكتب الرقم فقط"
-        );
+        sendMessage($chat_id, "⏳ اختر المدة:\n1️⃣ شهر\n3️⃣ ثلاثة أشهر\n12️⃣ سنة\n\nاكتب الرقم فقط");
         exit;
     }
 
-    // استقبال المدة
     if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "duration") {
         $duration = $text;
         $username = $states[$chat_id]["username"];
@@ -88,21 +78,31 @@ if (isset($update["message"])) {
         unset($states[$chat_id]);
         saveStates($states);
 
+        // أزرار الأدمن
+        $adminKeyboard = [
+            "inline_keyboard" => [
+                [
+                    ["text" => "✅ قبول", "callback_data" => "approve|$chat_id"],
+                    ["text" => "🔄 قيد التجهيز", "callback_data" => "processing|$chat_id"]
+                ],
+                [
+                    ["text" => "❌ رفض", "callback_data" => "reject|$chat_id"]
+                ]
+            ]
+        ];
+
         // إرسال الطلب للأدمن
         sendMessage(
-            $GLOBALS["ADMIN_ID"],
-            "📩 <b>طلب شحن جديد</b>\n\n".
+            $ADMIN_ID,
+            "📩 <b>طلب جديد</b>\n\n".
             "👤 المستخدم: @$username\n".
             "⭐ الخدمة: Telegram Premium\n".
             "⏳ المدة: $duration\n".
-            "🆔 Chat ID: $chat_id"
+            "🆔 Chat ID: $chat_id",
+            $adminKeyboard
         );
 
-        // تأكيد للمستخدم
-        sendMessage(
-            $chat_id,
-            "✅ تم استلام طلبك بنجاح\n\nسيتم تنفيذه يدويًا في أقرب وقت 🌟"
-        );
+        sendMessage($chat_id, "✅ تم استلام طلبك وسيتم مراجعته ✨");
         exit;
     }
 }
@@ -112,23 +112,41 @@ if (isset($update["message"])) {
 // ===============================
 if (isset($update["callback_query"])) {
 
-    $chat_id = $update["callback_query"]["message"]["chat"]["id"];
     $data = $update["callback_query"]["data"];
+    $admin_chat = $update["callback_query"]["message"]["chat"]["id"];
 
+    // أزرار المستخدم
     if ($data === "tg_premium") {
-        $states[$chat_id] = ["step" => "username"];
+        $states[$admin_chat] = ["step" => "username"];
         saveStates($states);
 
-        sendMessage(
-            $chat_id,
-            "⭐ شحن Telegram Premium\n\n✍️ أرسل اسم المستخدم أو الرقم:"
-        );
+        sendMessage($admin_chat, "⭐ أرسل اسم المستخدم أو الرقم:");
+        exit;
     }
 
     if ($data === "support") {
-        sendMessage(
-            $chat_id,
-            "☎️ الدعم الفني\n\nراسلنا مباشرة"
-        );
+        sendMessage($admin_chat, "☎️ الدعم الفني\nراسلنا في أي وقت");
+        exit;
+    }
+
+    // أزرار الأدمن
+    if ($admin_chat == $GLOBALS["ADMIN_ID"]) {
+
+        list($action, $user_chat) = explode("|", $data);
+
+        if ($action === "approve") {
+            sendMessage($user_chat, "🎉 تم <b>قبول</b> طلبك وسيتم التنفيذ قريبًا");
+            sendMessage($admin_chat, "✅ تم قبول الطلب");
+        }
+
+        if ($action === "processing") {
+            sendMessage($user_chat, "🔄 طلبك <b>قيد التجهيز</b> حاليًا");
+            sendMessage($admin_chat, "🔄 تم تحديث الحالة: قيد التجهيز");
+        }
+
+        if ($action === "reject") {
+            sendMessage($user_chat, "❌ نعتذر، تم <b>رفض</b> الطلب\nللاستفسار تواصل مع الدعم");
+            sendMessage($admin_chat, "❌ تم رفض الطلب");
+        }
     }
 }
