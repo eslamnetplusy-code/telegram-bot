@@ -2,10 +2,10 @@
 http_response_code(200);
 
 // ================= CONFIG =================
-$botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
+$botToken = "PUT_NEW_BOT_TOKEN_HERE";
 
 $apiUrl   = "https://megatec-center.com/api/request";
-$apiUser  = "u_3862970154"; // (غير مستخدم الآن لكن محفوظ)
+$apiUser  = "u_3862970154"; // محفوظ للمستقبل
 $apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
 
 // ================= READ UPDATE =================
@@ -18,9 +18,11 @@ if (!$message && !$callback) {
     exit;
 }
 
-// ================= SEND MESSAGE =================
+// ================= SEND MESSAGE (POST) =================
 function sendMessage($chat_id, $text, $keyboard = null) {
     global $botToken;
+
+    $url = "https://api.telegram.org/bot$botToken/sendMessage";
 
     $data = [
         "chat_id" => $chat_id,
@@ -29,22 +31,26 @@ function sendMessage($chat_id, $text, $keyboard = null) {
     ];
 
     if ($keyboard) {
-        $data["reply_markup"] = json_encode($keyboard);
+        $data["reply_markup"] = json_encode($keyboard, JSON_UNESCAPED_UNICODE);
     }
 
-    file_get_contents(
-        "https://api.telegram.org/bot$botToken/sendMessage?" .
-        http_build_query($data)
-    );
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS => $data
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
 }
 
-// ================= START & TEXT =================
+// ================= HANDLE MESSAGE =================
 if ($message) {
 
     $chat_id = $message["chat"]["id"];
     $text    = trim($message["text"] ?? "");
 
-    // /start
+    // ========= /start =========
     if ($text === "/start") {
         sendMessage(
             $chat_id,
@@ -60,7 +66,7 @@ if ($message) {
         exit;
     }
 
-    // اختيار الباقة
+    // ========= اختيار الباقة =========
     if ($text === "🎮 10 شدّات") {
         file_put_contents("order_$chat_id.txt", "1114");
         sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
@@ -73,15 +79,15 @@ if ($message) {
         exit;
     }
 
-    // استقبال Player ID
+    // ========= استقبال Player ID =========
     if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
         $service = file_get_contents("order_$chat_id.txt");
         unlink("order_$chat_id.txt");
 
-        $reference = time() . rand(100,999);
+        $reference = time() . rand(100, 999);
 
-        // ===== CURL POST =====
+        // ===== CURL API REQUEST =====
         $ch = curl_init($apiUrl);
 
         curl_setopt_array($ch, [
@@ -103,7 +109,7 @@ if ($message) {
         curl_close($ch);
 
         if ($error) {
-            sendMessage($chat_id, "❌ خطأ في الاتصال:\n$error");
+            sendMessage($chat_id, "❌ <b>خطأ في الاتصال</b>\n$error");
             exit;
         }
 
@@ -114,6 +120,6 @@ if ($message) {
         exit;
     }
 
-    // أي رسالة أخرى
+    // ========= رسالة افتراضية =========
     sendMessage($chat_id, "ℹ️ للبدء أرسل /start");
 }
