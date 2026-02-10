@@ -8,7 +8,7 @@ $ADMIN_ID = 1442087030;
 // قراءة التحديث
 $update = json_decode(file_get_contents("php://input"), true);
 
-// ملف تخزين الحالة
+// ملف تخزين الحالات
 $stateFile = "state.json";
 $states = file_exists($stateFile) ? json_decode(file_get_contents($stateFile), true) : [];
 
@@ -36,7 +36,7 @@ function saveStates($states) {
 }
 
 // ===============================
-// الأزرار الرئيسية
+// الأزرار الرئيسية للمستخدم
 // ===============================
 $mainKeyboard = [
     "inline_keyboard" => [
@@ -50,7 +50,7 @@ $mainKeyboard = [
 ];
 
 // ===============================
-// معالجة الرسائل
+// معالجة الرسائل النصية
 // ===============================
 if (isset($update["message"])) {
 
@@ -58,19 +58,24 @@ if (isset($update["message"])) {
     $text = trim($update["message"]["text"] ?? "");
 
     if ($text === "/start") {
-        sendMessage($chat_id, "👋 أهلاً بك\n\nاختر الخدمة:", $mainKeyboard);
+        sendMessage($chat_id, "👋 أهلاً بك\n\nاختر الخدمة المطلوبة:", $mainKeyboard);
         exit;
     }
 
+    // إدخال اسم المستخدم
     if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "username") {
         $states[$chat_id]["username"] = $text;
         $states[$chat_id]["step"] = "duration";
         saveStates($states);
 
-        sendMessage($chat_id, "⏳ اختر المدة:\n1️⃣ شهر\n3️⃣ ثلاثة أشهر\n12️⃣ سنة\n\nاكتب الرقم فقط");
+        sendMessage(
+            $chat_id,
+            "⏳ اختر مدة الاشتراك:\n\n1️⃣ شهر\n3️⃣ ثلاثة أشهر\n12️⃣ سنة\n\n✍️ اكتب الرقم فقط"
+        );
         exit;
     }
 
+    // إدخال المدة
     if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "duration") {
         $duration = $text;
         $username = $states[$chat_id]["username"];
@@ -86,6 +91,9 @@ if (isset($update["message"])) {
                     ["text" => "🔄 قيد التجهيز", "callback_data" => "processing|$chat_id"]
                 ],
                 [
+                    ["text" => "🟢 تم التنفيذ", "callback_data" => "done|$chat_id"]
+                ],
+                [
                     ["text" => "❌ رفض", "callback_data" => "reject|$chat_id"]
                 ]
             ]
@@ -94,7 +102,7 @@ if (isset($update["message"])) {
         // إرسال الطلب للأدمن
         sendMessage(
             $ADMIN_ID,
-            "📩 <b>طلب جديد</b>\n\n".
+            "📩 <b>طلب شحن جديد</b>\n\n".
             "👤 المستخدم: @$username\n".
             "⭐ الخدمة: Telegram Premium\n".
             "⏳ المدة: $duration\n".
@@ -102,7 +110,7 @@ if (isset($update["message"])) {
             $adminKeyboard
         );
 
-        sendMessage($chat_id, "✅ تم استلام طلبك وسيتم مراجعته ✨");
+        sendMessage($chat_id, "✅ تم استلام طلبك وسيتم مراجعته قريبًا 🌟");
         exit;
     }
 }
@@ -129,23 +137,31 @@ if (isset($update["callback_query"])) {
         exit;
     }
 
-    // أزرار الأدمن
-    if ($admin_chat == $GLOBALS["ADMIN_ID"]) {
+    // أزرار الأدمن فقط
+    if ($admin_chat == $ADMIN_ID) {
 
         list($action, $user_chat) = explode("|", $data);
 
         if ($action === "approve") {
-            sendMessage($user_chat, "🎉 تم <b>قبول</b> طلبك وسيتم التنفيذ قريبًا");
-            sendMessage($admin_chat, "✅ تم قبول الطلب");
+            sendMessage($user_chat, "✅ تم <b>قبول</b> طلبك وسيتم التنفيذ قريبًا");
+            sendMessage($admin_chat, "✔ تم قبول الطلب");
         }
 
         if ($action === "processing") {
             sendMessage($user_chat, "🔄 طلبك <b>قيد التجهيز</b> حاليًا");
-            sendMessage($admin_chat, "🔄 تم تحديث الحالة: قيد التجهيز");
+            sendMessage($admin_chat, "🔄 تم تحديث الحالة إلى قيد التجهيز");
+        }
+
+        if ($action === "done") {
+            sendMessage($user_chat, "🎉 <b>تم تنفيذ طلبك بنجاح</b>\n\nشكرًا لاستخدامك خدمتنا 🌟");
+            sendMessage($admin_chat, "🟢 تم تنفيذ الطلب بنجاح");
         }
 
         if ($action === "reject") {
-            sendMessage($user_chat, "❌ نعتذر، تم <b>رفض</b> الطلب\nللاستفسار تواصل مع الدعم");
+            sendMessage(
+                $user_chat,
+                "❌ نعتذر، تم <b>رفض</b> الطلب\n\nللاستفسار تواصل مع الدعم"
+            );
             sendMessage($admin_chat, "❌ تم رفض الطلب");
         }
     }
