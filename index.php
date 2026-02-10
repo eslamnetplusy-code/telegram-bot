@@ -2,7 +2,7 @@
 http_response_code(200);
 
 $BOT_TOKEN = getenv("8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0");
-$API_URL = "https://api.telegram.org/bot8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0/";
+$API_URL = "http://185.112.200.88/yemen_robot";
 $ADMIN_ID = 1442087030;
 
 // API PUBG
