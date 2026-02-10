@@ -1,97 +1,49 @@
 <?php
+// تأكيد رد 200 فورًا
+http_response_code(200);
 
-// ====== إعدادات من Railway Variables ======
-$botToken = getenv("8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0");
-$apiUrl   = getenv("http://185.112.200.88/yemen_robot");
-$apiUser  = getenv("u_3862970154");
-$apiToken = getenv("fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo");
+// قراءة التحديث
+$input = file_get_contents("php://input");
+$update = json_decode($input, true);
 
-// ====== استقبال التحديث من تيليجرام ======
-$update = json_decode(file_get_contents("php://input"), true);
-$message = $update["message"] ?? null;
+// سجل للتأكد (اختياري)
+file_put_contents("debug.log", $input . PHP_EOL, FILE_APPEND);
 
-if (!$message) {
+// توكن البوت
+$botToken = getenv("BOT_TOKEN");
+$apiUrl = "https://api.telegram.org/bot$botToken";
+
+// تحقق من وجود رسالة
+if (!isset($update["message"]["chat"]["id"])) {
     exit;
 }
 
-$chat_id = $message["chat"]["id"];
-$text    = trim($message["text"] ?? "");
+$chat_id = $update["message"]["chat"]["id"];
+$text = trim($update["message"]["text"] ?? "");
 
-// ====== دالة إرسال رسالة (آمنة + تدعم العربي) ======
+// رد بسيط للاختبار
+if ($text === "/start") {
+    sendMessage($chat_id, "✅ البوت شغال الآن!\n\nأهلاً بك 👋");
+} else {
+    sendMessage($chat_id, "📩 وصلني:\n" . $text);
+}
+
+// دالة إرسال رسالة
 function sendMessage($chat_id, $text) {
-    global $botToken;
-
-    $url = "https://api.telegram.org/bot$botToken/sendMessage";
+    global $apiUrl;
 
     $data = [
         "chat_id" => $chat_id,
-        "text"    => $text
+        "text" => $text
     ];
 
     $options = [
         "http" => [
             "header"  => "Content-Type: application/json",
             "method"  => "POST",
-            "content" => json_encode($data, JSON_UNESCAPED_UNICODE),
+            "content" => json_encode($data, JSON_UNESCAPED_UNICODE)
         ]
     ];
 
-    $context = stream_context_create($options);
-    file_get_contents($url, false, $context);
-}
-
-// ====== أوامر البوت ======
-
-if ($text === "/start") {
-
-    sendMessage(
-        $chat_id,
-        "👋 أهلاً بك في بوت الخدمات\n\n".
-        "🛒 لعرض الخدمات اكتب:\n".
-        "/services"
-    );
-
-} elseif ($text === "/services") {
-
-    sendMessage(
-        $chat_id,
-        "📦 الخدمات المتوفرة:\n\n".
-        "1️⃣ شحن Telegram Premium\n".
-        "2️⃣ شحن نجوم تيليجرام ⭐\n\n".
-        "✍️ لتنفيذ طلب اكتب:\n".
-        "/buy"
-    );
-
-} elseif ($text === "/buy") {
-
-    // ====== مثال تنفيذ طلب (عدّله حسب API الحقيقي) ======
-    $requestUrl =
-        $apiUrl .
-        "?username=" . urlencode($apiUser) .
-        "&token="    . urlencode($apiToken) .
-        "&service=telegram_test" .
-        "&qty=1" .
-        "&number=" . urlencode($chat_id);
-
-    $response = @file_get_contents($requestUrl);
-
-    if ($response === false) {
-        sendMessage($chat_id, "❌ حدث خطأ أثناء الاتصال بالخدمة، حاول لاحقًا");
-    } else {
-        sendMessage(
-            $chat_id,
-            "✅ تم إرسال الطلب\n\n".
-            "📄 رد الخدمة:\n".
-            $response
-        );
-    }
-
-} else {
-
-    sendMessage(
-        $chat_id,
-        "❓ أمر غير معروف\n\n".
-        "استخدم /services لعرض الخدمات"
-    );
-
+    file_get_contents($apiUrl . "/sendMessage", false, stream_context_create($options));
 }
