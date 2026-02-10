@@ -1,31 +1,26 @@
 <?php
 http_response_code(200);
 
-$BOT_TOKEN = getenv("8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0");
-$API_URL = "http://185.112.200.88/yemen_robot";
-$ADMIN_ID = 1442087030;
+// ================= CONFIG =================
+$botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
-// API PUBG
-$PUBG_API = "http://185.112.200.88/yemen_robot";
+$apiUrl   = "https://megatec-center.com/api/request";
+$apiUser  = "u_3862970154"; // (غير مستخدم الآن لكن محفوظ)
+$apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
 
-// فئات الشدّات
-$PUBG_SERVICES = [
-    "10" => "1114",
-    "60" => "1101"
-];
-
-// قراءة التحديث
+// ================= READ UPDATE =================
 $update = json_decode(file_get_contents("php://input"), true);
 
-// تخزين الحالات
-$stateFile = "state.json";
-$states = file_exists($stateFile) ? json_decode(file_get_contents($stateFile), true) : [];
+$message  = $update["message"] ?? null;
+$callback = $update["callback_query"] ?? null;
 
-// ===============================
-// دوال مساعدة
-// ===============================
+if (!$message && !$callback) {
+    exit;
+}
+
+// ================= SEND MESSAGE =================
 function sendMessage($chat_id, $text, $keyboard = null) {
-    global $API_URL;
+    global $botToken;
 
     $data = [
         "chat_id" => $chat_id,
@@ -37,136 +32,88 @@ function sendMessage($chat_id, $text, $keyboard = null) {
         $data["reply_markup"] = json_encode($keyboard);
     }
 
-    file_get_contents($API_URL . "sendMessage?" . http_build_query($data));
+    file_get_contents(
+        "https://api.telegram.org/bot$botToken/sendMessage?" .
+        http_build_query($data)
+    );
 }
 
-function saveStates($states) {
-    file_put_contents("state.json", json_encode($states));
-}
+// ================= START & TEXT =================
+if ($message) {
 
-// تنفيذ طلب PUBG تلقائي
-function chargePubg($service_id, $player_id) {
-    global $PUBG_API;
+    $chat_id = $message["chat"]["id"];
+    $text    = trim($message["text"] ?? "");
 
-    $postData = http_build_query([
-        "service"   => $service_id,
-        "player_id" => $player_id
-    ]);
-
-    $opts = [
-        "http" => [
-            "method"  => "POST",
-            "header"  => "Content-Type: application/x-www-form-urlencoded",
-            "content" => $postData,
-            "timeout" => 30
-        ]
-    ];
-
-    $context = stream_context_create($opts);
-    return file_get_contents($PUBG_API, false, $context);
-}
-
-// ===============================
-// أزرار المستخدم
-// ===============================
-$mainKeyboard = [
-    "inline_keyboard" => [
-        [
-            ["text" => "🎮 شحن شدّات ببجي", "callback_data" => "pubg"]
-        ]
-    ]
-];
-
-// ===============================
-// الرسائل النصية
-// ===============================
-if (isset($update["message"])) {
-
-    $chat_id = $update["message"]["chat"]["id"];
-    $text = trim($update["message"]["text"] ?? "");
-
+    // /start
     if ($text === "/start") {
-        sendMessage($chat_id, "👋 أهلاً بك\nاختر الخدمة:", $mainKeyboard);
-        exit;
-    }
-
-    // إدخال Player ID
-    if (isset($states[$chat_id]) && $states[$chat_id]["step"] === "pubg_player") {
-        $states[$chat_id]["player_id"] = $text;
-        $states[$chat_id]["step"] = "pubg_amount";
-        saveStates($states);
-
-        $keyboard = [
-            "inline_keyboard" => [
-                [
-                    ["text" => "10 شدّات", "callback_data" => "pubg_amount|10"],
-                    ["text" => "60 شدّات", "callback_data" => "pubg_amount|60"]
-                ]
+        sendMessage(
+            $chat_id,
+            "👋 <b>مرحباً بك</b>\n\nاختر باقة شحن شدّات ببجي:",
+            [
+                "keyboard" => [
+                    ["🎮 10 شدّات"],
+                    ["🎮 60 شدّة"]
+                ],
+                "resize_keyboard" => true
             ]
-        ];
-
-        sendMessage($chat_id, "🎮 اختر فئة الشحن:", $keyboard);
-        exit;
-    }
-}
-
-// ===============================
-// الأزرار
-// ===============================
-if (isset($update["callback_query"])) {
-
-    $chat_id = $update["callback_query"]["message"]["chat"]["id"];
-    $data = $update["callback_query"]["data"];
-
-    // بدء PUBG
-    if ($data === "pubg") {
-        $states[$chat_id] = ["step" => "pubg_player"];
-        saveStates($states);
-
-        sendMessage($chat_id, "✍️ أرسل Player ID:");
+        );
         exit;
     }
 
-    // اختيار الفئة
-    if (strpos($data, "pubg_amount") === 0) {
-        [, $amount] = explode("|", $data);
+    // اختيار الباقة
+    if ($text === "🎮 10 شدّات") {
+        file_put_contents("order_$chat_id.txt", "1114");
+        sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
+        exit;
+    }
 
-        $player_id = $states[$chat_id]["player_id"];
-        $service_id = $GLOBALS["PUBG_SERVICES"][$amount];
+    if ($text === "🎮 60 شدّة") {
+        file_put_contents("order_$chat_id.txt", "1101");
+        sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
+        exit;
+    }
 
-        unset($states[$chat_id]);
-        saveStates($states);
+    // استقبال Player ID
+    if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
-        // إرسال الطلب للأدمن مع زر التنفيذ
-        $adminKeyboard = [
-            "inline_keyboard" => [
-                [
-                    ["text" => "🟢 تم التنفيذ", "callback_data" => "pubg_exec|$chat_id|$service_id|$player_id"]
-                ]
+        $service = file_get_contents("order_$chat_id.txt");
+        unlink("order_$chat_id.txt");
+
+        $reference = time() . rand(100,999);
+
+        // ===== CURL POST =====
+        $ch = curl_init($apiUrl);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: Bearer $apiToken"
+            ],
+            CURLOPT_POSTFIELDS => [
+                "request"   => "neworder",
+                "service"   => $service,
+                "reference" => $reference,
+                "player_id" => $text
             ]
-        ];
+        ]);
+
+        $response = curl_exec($ch);
+        $error    = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            sendMessage($chat_id, "❌ خطأ في الاتصال:\n$error");
+            exit;
+        }
 
         sendMessage(
-            $ADMIN_ID,
-            "📩 <b>طلب شحن ببجي</b>\n\n".
-            "🆔 Player ID: $player_id\n".
-            "🎮 الفئة: $amount شدّات\n",
-            $adminKeyboard
+            $chat_id,
+            "✅ <b>تم إرسال طلب الشحن</b>\n\n📄 رد النظام:\n<pre>$response</pre>"
         );
-
-        sendMessage($chat_id, "✅ تم استلام طلبك وسيتم تنفيذه قريبًا");
         exit;
     }
 
-    // تنفيذ تلقائي (أدمن)
-    if (strpos($data, "pubg_exec") === 0 && $chat_id == $ADMIN_ID) {
-
-        [, $user_chat, $service_id, $player_id] = explode("|", $data);
-
-        $result = chargePubg($service_id, $player_id);
-
-        sendMessage($user_chat, "🎉 تم تنفيذ طلبك\n\n📄 رد النظام:\n$result");
-        sendMessage($ADMIN_ID, "✅ تم تنفيذ الطلب بنجاح\n\n$result");
-        exit;
-    }
+    // أي رسالة أخرى
+    sendMessage($chat_id, "ℹ️ للبدء أرسل /start");
 }
