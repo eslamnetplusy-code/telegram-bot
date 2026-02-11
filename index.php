@@ -1,15 +1,15 @@
 <?php
 http_response_code(200);
 
-/* ================== CONFIG ================== */
+/* ================= CONFIG ================= */
 
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
-$apiUrl   = "https://megatec-center.com/api/rest.php";
 
+$apiUrl   = "http://185.112.200.88/yemen_robot";
 $apiUser  = "u_3862970154";
-$apiPass  = "Fekri-738911634";
+$apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
 
-/* ================== TELEGRAM FUNCTION ================== */
+/* ================= SEND MESSAGE ================= */
 
 function sendMessage($chat_id, $text, $keyboard = null)
 {
@@ -22,7 +22,7 @@ function sendMessage($chat_id, $text, $keyboard = null)
     ];
 
     if ($keyboard) {
-        $data["reply_markup"] = json_encode($keyboard);
+        $data["reply_markup"] = json_encode($keyboard, JSON_UNESCAPED_UNICODE);
     }
 
     file_get_contents(
@@ -31,18 +31,21 @@ function sendMessage($chat_id, $text, $keyboard = null)
     );
 }
 
-/* ================== MEGATEC API FUNCTION ================== */
+/* ================= YEMEN API ================= */
 
-function megaApi($postData)
+function yemenApi($data)
 {
-    global $apiUrl, $apiUser, $apiPass;
+    global $apiUrl, $apiUser, $apiToken;
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $apiUrl);
+    $postData = [
+        "username" => $apiUser,
+        "token"    => $apiToken
+    ] + $data;
+
+    $ch = curl_init($apiUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_USERPWD, $apiUser . ":" . $apiPass);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 
     $response = curl_exec($ch);
     curl_close($ch);
@@ -50,7 +53,7 @@ function megaApi($postData)
     return json_decode($response, true);
 }
 
-/* ================== READ UPDATE ================== */
+/* ================= READ UPDATE ================= */
 
 $update = json_decode(file_get_contents("php://input"), true);
 $message = $update["message"] ?? null;
@@ -60,7 +63,7 @@ if (!$message) exit;
 $chat_id = $message["chat"]["id"];
 $text = trim($message["text"] ?? "");
 
-/* ================== START ================== */
+/* ================= START ================= */
 
 if ($text == "/start") {
 
@@ -79,21 +82,21 @@ if ($text == "/start") {
     exit;
 }
 
-/* ================== SELECT SERVICE ================== */
+/* ================= SELECT PACKAGE ================= */
 
 if ($text == "🎮 10 شدّات") {
-    file_put_contents("order_$chat_id.txt", "1114"); // رقم API للخدمة 10
+    file_put_contents("order_$chat_id.txt", "1114"); // عدّل حسب رقم API
     sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
 
 if ($text == "🎮 60 شدّة") {
-    file_put_contents("order_$chat_id.txt", "1101"); // رقم API للخدمة 60
+    file_put_contents("order_$chat_id.txt", "1101"); // رقم API للـ 60 UC
     sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
 
-/* ================== RECEIVE PLAYER ID ================== */
+/* ================= RECEIVE PLAYER ID ================= */
 
 if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
@@ -102,7 +105,9 @@ if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
     $reference = time() . rand(100,999);
 
-    $apiResponse = megaApi([
+    sendMessage($chat_id, "⏳ جاري تنفيذ الطلب...");
+
+    $apiResponse = yemenApi([
         "request"   => "neworder",
         "service"   => $service,
         "reference" => $reference,
@@ -123,12 +128,14 @@ if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
     sendMessage(
         $chat_id,
-        "✅ <b>تم تنفيذ طلب الشحن بنجاح</b>\n\n🧾 رقم العملية:\n<code>{$reference}</code>"
+        "✅ <b>تم تنفيذ طلب الشحن بنجاح</b>\n\n"
+        ."🎮 Player ID: <code>$text</code>\n"
+        ."🧾 رقم العملية: <code>$reference</code>"
     );
 
     exit;
 }
 
-/* ================== DEFAULT ================== */
+/* ================= DEFAULT ================= */
 
 sendMessage($chat_id, "ℹ️ أرسل /start للبدء");
