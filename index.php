@@ -5,7 +5,7 @@ http_response_code(200);
 
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
-$apiUrl   = "http://185.112.200.88/yemen_robot";
+$apiUrl   = "https://7175064b1acb.sn.mynetname.net:8080/rest";
 $apiUser  = "u_3862970154";
 $apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
 
