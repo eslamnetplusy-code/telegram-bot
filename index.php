@@ -31,7 +31,7 @@ function sendMessage($chat_id, $text, $keyboard = null)
     );
 }
 
-/* ================= YEMEN API ================= */
+/* ================= YEMEN API (RAW DEBUG) ================= */
 
 function yemenApi($data)
 {
@@ -48,9 +48,16 @@ function yemenApi($data)
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 
     $response = curl_exec($ch);
+
+    if (curl_errno($ch)) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        return "CURL ERROR: " . $error;
+    }
+
     curl_close($ch);
 
-    return json_decode($response, true);
+    return $response; // نرجع الرد الخام
 }
 
 /* ================= READ UPDATE ================= */
@@ -85,13 +92,13 @@ if ($text == "/start") {
 /* ================= SELECT PACKAGE ================= */
 
 if ($text == "🎮 10 شدّات") {
-    file_put_contents("order_$chat_id.txt", "1114"); // عدّل حسب رقم API
+    file_put_contents("order_$chat_id.txt", "1114");
     sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
 
 if ($text == "🎮 60 شدّة") {
-    file_put_contents("order_$chat_id.txt", "1101"); // رقم API للـ 60 UC
+    file_put_contents("order_$chat_id.txt", "1101");
     sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
@@ -114,23 +121,10 @@ if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
         "player_id" => $text
     ]);
 
-    if (!$apiResponse || $apiResponse["status"] == false) {
-
-        $errorMsg = $apiResponse["message"] ?? "حدث خطأ غير معروف";
-
-        sendMessage(
-            $chat_id,
-            "❌ <b>فشل تنفيذ الطلب</b>\n\n📌 السبب:\n<pre>$errorMsg</pre>"
-        );
-
-        exit;
-    }
-
+    // نطبع الرد الخام
     sendMessage(
         $chat_id,
-        "✅ <b>تم تنفيذ طلب الشحن بنجاح</b>\n\n"
-        ."🎮 Player ID: <code>$text</code>\n"
-        ."🧾 رقم العملية: <code>$reference</code>"
+        "📄 <b>رد السيرفر:</b>\n<pre>$apiResponse</pre>"
     );
 
     exit;
