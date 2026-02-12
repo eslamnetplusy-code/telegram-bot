@@ -1,18 +1,35 @@
 <?php
 http_response_code(200);
+set_time_limit(0);
 
-/* ================= CONFIG ================= */
+// ================= CONFIG =================
 
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
-$apiUrl   = "https://7175064b1acb.sn.mynetname.net:8080/rest";
-$apiUser  = "u_3862970154";
-$apiToken = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo";
+$apiUrl  = "https://megatec-center.com/api/rest.php";
+$apiUser = "u_3862970154";
+$apiPass = "Fekri-738911634";
 
-/* ================= SEND MESSAGE ================= */
+// ================= READ UPDATE =================
 
-function sendMessage($chat_id, $text, $keyboard = null)
-{
+$update = json_decode(file_get_contents("php://input"), true);
+
+if (!$update) {
+    exit;
+}
+
+$message = $update["message"] ?? null;
+
+if (!$message) {
+    exit;
+}
+
+$chat_id = $message["chat"]["id"];
+$text    = trim($message["text"] ?? "");
+
+// ================= SEND MESSAGE =================
+
+function sendMessage($chat_id, $text, $keyboard = null) {
     global $botToken;
 
     $data = [
@@ -22,7 +39,7 @@ function sendMessage($chat_id, $text, $keyboard = null)
     ];
 
     if ($keyboard) {
-        $data["reply_markup"] = json_encode($keyboard, JSON_UNESCAPED_UNICODE);
+        $data["reply_markup"] = json_encode($keyboard);
     }
 
     file_get_contents(
@@ -31,48 +48,47 @@ function sendMessage($chat_id, $text, $keyboard = null)
     );
 }
 
-/* ================= YEMEN API (RAW DEBUG) ================= */
+// ================= API FUNCTION =================
 
-function yemenApi($data)
-{
-    global $apiUrl, $apiUser, $apiToken;
+function sendOrder($service_id, $player_id) {
+    global $apiUrl, $apiUser, $apiPass;
 
     $postData = [
-        "username" => $apiUser,
-        "token"    => $apiToken
-    ] + $data;
+        "request"   => "neworder",
+        "service"   => $service_id,
+        "player_id" => $player_id
+    ];
 
     $ch = curl_init($apiUrl);
+
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+
+    // 🔥 Basic Auth
+    curl_setopt($ch, CURLOPT_USERPWD, $apiUser . ":" . $apiPass);
+
+    // 🔥 مهم جداً
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
     $response = curl_exec($ch);
 
     if (curl_errno($ch)) {
-        $error = curl_error($ch);
-        curl_close($ch);
-        return "CURL ERROR: " . $error;
+        return [
+            "status" => false,
+            "message" => curl_error($ch)
+        ];
     }
 
     curl_close($ch);
 
-    return $response; // نرجع الرد الخام
+    return json_decode($response, true);
 }
 
-/* ================= READ UPDATE ================= */
+// ================= BOT LOGIC =================
 
-$update = json_decode(file_get_contents("php://input"), true);
-$message = $update["message"] ?? null;
-
-if (!$message) exit;
-
-$chat_id = $message["chat"]["id"];
-$text = trim($message["text"] ?? "");
-
-/* ================= START ================= */
-
-if ($text == "/start") {
+if ($text === "/start") {
 
     sendMessage(
         $chat_id,
@@ -85,51 +101,56 @@ if ($text == "/start") {
             "resize_keyboard" => true
         ]
     );
-
     exit;
 }
 
-/* ================= SELECT PACKAGE ================= */
-
-if ($text == "🎮 10 شدّات") {
+if ($text === "🎮 10 شدّات") {
     file_put_contents("order_$chat_id.txt", "1114");
     sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
 
-if ($text == "🎮 60 شدّة") {
+if ($text === "🎮 60 شدّة") {
     file_put_contents("order_$chat_id.txt", "1101");
     sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
 
-/* ================= RECEIVE PLAYER ID ================= */
-
+// استقبال Player ID
 if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
     $service = file_get_contents("order_$chat_id.txt");
     unlink("order_$chat_id.txt");
 
-    $reference = time() . rand(100,999);
-
     sendMessage($chat_id, "⏳ جاري تنفيذ الطلب...");
 
-    $apiResponse = yemenApi([
-        "request"   => "neworder",
-        "service"   => $service,
-        "reference" => $reference,
-        "player_id" => $text
-    ]);
+    $result = sendOrder($service, $text);
 
-    // نطبع الرد الخام
-    sendMessage(
-        $chat_id,
-        "📄 <b>رد السيرفر:</b>\n<pre>$apiResponse</pre>"
-    );
+    if (!$result) {
+        sendMessage($chat_id, "❌ لم يتم استلام رد من السيرفر.");
+        exit;
+    }
+
+    if (isset($result["status"]) && $result["status"] == true) {
+
+        sendMessage(
+            $chat_id,
+            "✅ <b>تم تنفيذ الطلب بنجاح</b>\n\n📦 رقم الطلب:\n<code>" .
+            ($result["order"] ?? "غير معروف") .
+            "</code>"
+        );
+
+    } else {
+
+        sendMessage(
+            $chat_id,
+            "❌ <b>فشل تنفيذ الطلب</b>\n\n📌 السبب:\n" .
+            ($result["message"] ?? "خطأ غير معروف")
+        );
+    }
 
     exit;
 }
 
-/* ================= DEFAULT ================= */
-
+// أي رسالة أخرى
 sendMessage($chat_id, "ℹ️ أرسل /start للبدء");
