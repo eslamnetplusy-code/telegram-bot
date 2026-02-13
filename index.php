@@ -6,7 +6,7 @@ set_time_limit(0);
 // ========= CONFIG =========
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 $apiUsername = "u_3862970154";
-$apiKey = "http://185.112.200.88/yemen_robot";
+$apiKey = "https://megatec-center.com/api/rest.php";
 
 $apiUrl = "https://megatec-center.com/api/rest/$apiUsername/$apiKey";
 
