@@ -4,8 +4,10 @@ set_time_limit(0);
 
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
-$apiUrl  = "https://megatec-center.com/api/rest.php";
-$apiKey  = "fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo"; // 🔥 ضع التوكن هنا
+$apiUser = "u_3862970154";
+$apiKey  = "http://185.112.200.88/yemen_robot";
+
+$apiUrl = "https://megatec-center.com/api/rest/$apiUser/$apiKey";
 
 $update = json_decode(file_get_contents("php://input"), true);
 if (!$update) exit;
@@ -23,8 +25,7 @@ function sendMessage($chat_id, $text, $keyboard = null) {
 
     $data = [
         "chat_id" => $chat_id,
-        "text" => $text,
-        "parse_mode" => "HTML"
+        "text" => $text
     ];
 
     if ($keyboard) {
@@ -40,22 +41,26 @@ function sendMessage($chat_id, $text, $keyboard = null) {
 // ================= SEND ORDER =================
 
 function sendOrder($service_id, $player_id) {
-    global $apiUrl, $apiKey;
+    global $apiUrl;
+
+    $reference = time() . rand(100,999);
 
     $postData = [
         "request"   => "neworder",
         "service"   => $service_id,
-        "player_id" => $player_id,
-        "key"       => $apiKey
+        "reference" => $reference,
+        "player_id" => $player_id
     ];
 
     $ch = curl_init($apiUrl);
 
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postData,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
 
     $response = curl_exec($ch);
 
@@ -76,7 +81,7 @@ function sendOrder($service_id, $player_id) {
 if ($text === "/start") {
     sendMessage(
         $chat_id,
-        "👋 مرحباً بك\n\nاختر باقة شحن:",
+        "👋 مرحباً بك\n\nاختر باقة الشحن:",
         [
             "keyboard" => [
                 ["🎮 60 شدّة"]
@@ -89,7 +94,7 @@ if ($text === "/start") {
 
 if ($text === "🎮 60 شدّة") {
     file_put_contents("order_$chat_id.txt", "1101");
-    sendMessage($chat_id, "✍️ أرسل Player ID الآن:");
+    sendMessage($chat_id, "✍️ أرسل Player ID:");
     exit;
 }
 
@@ -98,7 +103,7 @@ if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
     $service = file_get_contents("order_$chat_id.txt");
     unlink("order_$chat_id.txt");
 
-    sendMessage($chat_id, "⏳ جاري التنفيذ...");
+    sendMessage($chat_id, "⏳ جاري تنفيذ الطلب...");
 
     $result = sendOrder($service, $text);
 
@@ -106,8 +111,8 @@ if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
         sendMessage(
             $chat_id,
-            "✅ تم التنفيذ بنجاح\n\nرقم الطلب:\n" .
-            ($result["order"] ?? "غير معروف")
+            "✅ تم تنفيذ الطلب بنجاح\n\nرقم العملية:\n" .
+            ($result["order"] ?? $result["reference"])
         );
 
     } else {
@@ -115,7 +120,7 @@ if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
         sendMessage(
             $chat_id,
             "❌ فشل تنفيذ الطلب\n\nالسبب:\n" .
-            ($result["message"] ?? "غير معروف")
+            ($result["message"] ?? "خطأ غير معروف")
         );
     }
 
