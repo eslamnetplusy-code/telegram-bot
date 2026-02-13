@@ -2,30 +2,33 @@
 http_response_code(200);
 set_time_limit(0);
 
+// ================== CONFIG ==================
 $botToken = "8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0";
 
-$apiUser = "u_3862970154";
-$apiKey  = "http://185.112.200.88/yemen_robot";
+$apiUsername = "u_3862970154";
+$apiKey      = "https://megatec-center.com/api/rest.php";
 
-$apiUrl = "https://megatec-center.com/api/rest/$apiUser/$apiKey";
+$apiUrl = "https://megatec-center.com/api/rest/$apiUsername/$apiKey";
 
+// ================== GET UPDATE ==================
 $update = json_decode(file_get_contents("php://input"), true);
-if (!$update) exit;
 
-$message = $update["message"] ?? null;
-if (!$message) exit;
+if (!isset($update["message"])) {
+    exit;
+}
 
+$message = $update["message"];
 $chat_id = $message["chat"]["id"];
 $text    = trim($message["text"] ?? "");
 
-// ================= SEND MESSAGE =================
-
+// ================== SEND MESSAGE ==================
 function sendMessage($chat_id, $text, $keyboard = null) {
     global $botToken;
 
     $data = [
         "chat_id" => $chat_id,
-        "text" => $text
+        "text" => $text,
+        "parse_mode" => "HTML"
     ];
 
     if ($keyboard) {
@@ -38,8 +41,7 @@ function sendMessage($chat_id, $text, $keyboard = null) {
     );
 }
 
-// ================= SEND ORDER =================
-
+// ================== API ORDER FUNCTION ==================
 function sendOrder($service_id, $player_id) {
     global $apiUrl;
 
@@ -73,17 +75,21 @@ function sendOrder($service_id, $player_id) {
 
     curl_close($ch);
 
-    return json_decode($response, true);
+    return [
+        "raw" => $response
+    ];
 }
 
-// ================= BOT LOGIC =================
+// ================== BOT LOGIC ==================
 
-if ($text === "/start") {
+if ($text == "/start") {
+
     sendMessage(
         $chat_id,
-        "👋 مرحباً بك\n\nاختر باقة الشحن:",
+        "👋 <b>مرحباً بك</b>\n\nاختر باقة شحن شدّات ببجي:",
         [
             "keyboard" => [
+                ["🎮 10 شدّات"],
                 ["🎮 60 شدّة"]
             ],
             "resize_keyboard" => true
@@ -92,39 +98,34 @@ if ($text === "/start") {
     exit;
 }
 
-if ($text === "🎮 60 شدّة") {
-    file_put_contents("order_$chat_id.txt", "1101");
-    sendMessage($chat_id, "✍️ أرسل Player ID:");
+// اختيار 10 شدات
+if ($text == "🎮 10 شدّات") {
+    file_put_contents("order_$chat_id.txt", "1114");
+    sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
     exit;
 }
 
+// اختيار 60 شدات
+if ($text == "🎮 60 شدّة") {
+    file_put_contents("order_$chat_id.txt", "1101");
+    sendMessage($chat_id, "✍️ أرسل <b>Player ID</b> الآن:");
+    exit;
+}
+
+// استقبال Player ID
 if (is_numeric($text) && file_exists("order_$chat_id.txt")) {
 
     $service = file_get_contents("order_$chat_id.txt");
     unlink("order_$chat_id.txt");
 
-    sendMessage($chat_id, "⏳ جاري تنفيذ الطلب...");
-
     $result = sendOrder($service, $text);
 
-    if (isset($result["status"]) && $result["status"] == true) {
-
-        sendMessage(
-            $chat_id,
-            "✅ تم تنفيذ الطلب بنجاح\n\nرقم العملية:\n" .
-            ($result["order"] ?? $result["reference"])
-        );
-
-    } else {
-
-        sendMessage(
-            $chat_id,
-            "❌ فشل تنفيذ الطلب\n\nالسبب:\n" .
-            ($result["message"] ?? "خطأ غير معروف")
-        );
-    }
-
+    sendMessage(
+        $chat_id,
+        "🔍 رد السيرفر:\n\n<pre>" . print_r($result, true) . "</pre>"
+    );
     exit;
 }
 
-sendMessage($chat_id, "أرسل /start للبدء");
+// أي رسالة أخرى
+sendMessage($chat_id, "ℹ️ للبدء أرسل /start");
