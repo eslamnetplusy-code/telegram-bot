@@ -6,8 +6,8 @@ class MegaAPI {
     private $apiKey;
     
     public function __construct() {
-        $this->username = getenv('MEGA_USERNAME');
-        $this->apiKey = getenv('MEGA_API_KEY');
+        $this->username = getenv('u_3862970154');
+        $this->apiKey = getenv('fpl08cFMtJKHk5niYZuqd9r6LyBV2QDCNmwWv1UeRXIxo');
     }
     
     private function getAuthHeader() {
