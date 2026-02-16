@@ -90,7 +90,7 @@ class MegaAPI {
             ]);
             
             return json_decode($response->getBody(), true);
-        } catch (Exception $e) => {
+        } catch (Exception $e) {
             return ['status' => false, 'message' => $e->getMessage()];
         }
     }
