@@ -1,17 +1,19 @@
 <?php
 /**
  * Telegram Bot - Mega Center API Integration
- * Developed for Railway Hosting
+ * Hosted on Railway
  */
 
 require 'vendor/autoload.php';
 require 'mega_api.php';
 
 use \Telegram\Bot\Api;
-use \Telegram\Bot\Commands\Command;
 
 // Initialize Telegram Bot
-$telegram = new Api(getenv('8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0'));
+$botToken = getenv('8057785864:AAG-TggKI7ILG7JLSEwAuwz6F5WH7ddTne0');
+$telegram = new Api($botToken);
+
+// Initialize Mega API
 $megaApi = new MegaAPI();
 
 // Get Update
@@ -32,49 +34,40 @@ if (!$message) {
 $chatId = $message->getChat()->getId();
 $userId = $message->getFrom()->getId();
 $text = $message->getText();
-$messageId = $message->getMessageId();
-
-// Store user data temporarily (for multi-step commands)
-$userData = [];
 
 /**
- * Send Message Helper Function
+ * Send Message Helper
  */
-function sendMessage($telegram, $chatId, $text, $replyToMessageId = null) {
+function sendMessage($telegram, $chatId, $text) {
     return $telegram->sendMessage([
         'chat_id' => $chatId,
         'text' => $text,
-        'parse_mode' => 'HTML',
-        'reply_to_message_id' => $replyToMessageId
+        'parse_mode' => 'HTML'
     ]);
 }
+
 /**
- * Command: /start
- */
+ * Command: /start */
 if ($text === '/start') {
     $welcomeMessage = "
 🎮 <b>مرحباً بك في بوت الشحن!</b>
 
 📌 <b>الأوامر المتاحة:</b>
-/services - عرض جميع الخدمات المتاحة
-/balance - فحص رصيد الحساب
-/order - طلب خدمة جديدة
-/status - فحص حالة طلب
+/services - عرض الخدمات
+/balance - فحص الرصيد
+/order - طلب خدمة
+/status - حالة الطلب
 /help - المساعدة
 
 💡 <b>للبدء:</b>
-1. استخدم /services لعرض الخدمات
-2. اختر الخدمة المناسبة
-3. استخدم /order لطلب الشحن
-
-🔗 <b>الدعم الفني:</b> @YourSupport
+استخدم /services لعرض الخدمات المتاحة
     ";
     
     sendMessage($telegram, $chatId, $welcomeMessage);
 }
 
 /**
- * Command: /balance - Check Account Balance
+ * Command: /balance
  */
 elseif ($text === '/balance') {
     $balance = $megaApi->getBalance();
@@ -84,45 +77,46 @@ elseif ($text === '/balance') {
 💰 <b>رصيد حسابك:</b>
 
 💵 <code>{$balance['balance']} $</code>
-
-⚠️ <b>ملاحظة:</b>
-تأكد من وجود رصيد كافي قبل طلب أي خدمة
         ";
     } else {
-        $errorCode = $balance['code'] ?? 'Unknown';
+        $code = $balance['code'] ?? 'Unknown';
         $message = "
-❌ <b>خطأ في فحص الرصيد:</b>
+❌ <b>خطأ في فحص الرصيد</b>
 
-🔴 كود الخطأ: <code>{$errorCode}</code>
-📝 التفاصيل: {$balance['message']}
-
-⚠️ تأكد من صحة بيانات API في Railway        ";
+🔴 كود الخطأ: <code>{$code}</code>
+📝 {$balance['message']}
+        ";
     }
     
     sendMessage($telegram, $chatId, $message);
 }
 
 /**
- * Command: /services - Get Service List
+ * Command: /services
  */
 elseif ($text === '/services') {
     $services = $megaApi->getServiceList();
-    
-    if ($services['status'] === true && isset($services['ServiceList'])) {
-        $message = "📋 <b>قائمة الخدمات المتاحة:</b>\n\n";
+        if ($services['status'] === true && isset($services['ServiceList'])) {
+        $message = "📋 <b>الخدمات المتاحة:</b>\n\n";
         
         $count = 0;
         foreach ($services['ServiceList'] as $service) {
-            if ($count >= 10) {
-                $message .= "\n⚠️ <i>تم عرض أول 10 خدمات فقط</i>";
+            if ($count >= 15) {
+                $message .= "\n⚠️ <i>تم عرض أول 15 خدمة</i>";
                 break;
             }
             
+            $serviceName = $service['ServiceName'] ?? 'Unknown';
+            $serviceId = $service['ServiceApiID'] ?? 'N/A';
+            $price = $service['Price'] ?? '0';
+            $doTime = $service['DoTime'] ?? 'N/A';
+            
             $message .= "
-🎮 <b>{$service['ServiceName']}</b>
-🆔 كود الخدمة: <code>{$service['ServiceApiID']}</code>
-💰 السعر: <code>{$service['Price']} $</code>
-⏱️ الوقت: {$service['DoTime']}
+🎮 <b>{$serviceName}</b>
+🆔 <code>{$serviceId}</code>
+💰 <code>{$price}$</code>
+⏱️ {$doTime}
+━━━━━━━━━━━━
             ";
             $count++;
         }
@@ -136,17 +130,14 @@ elseif ($text === '/services') {
 /order 1101 5687489561
         ";
     } else {
-        $message = "❌ <b>فشل في جلب قائمة الخدمات</b>
-
-📝 الخطأ: {$services['message']}
-        ";
+        $message = "❌ <b>فشل في جلب الخدمات</b>";
     }
     
     sendMessage($telegram, $chatId, $message);
 }
 
-/** * Command: /order - Place New Order
- * Format: /order <service_id> <player_id>
+/**
+ * Command: /order
  */
 elseif (strpos($text, '/order') === 0) {
     $parts = explode(' ', trim($text));
@@ -154,8 +145,7 @@ elseif (strpos($text, '/order') === 0) {
     if (count($parts) < 3) {
         $message = "
 ❌ <b>بيانات غير مكتملة!</b>
-
-📝 <b>طريقة الاستخدام:</b>
+📝 <b>الاستخدام:</b>
 /order <service_id> <player_id>
 
 📌 <b>مثال:</b>
@@ -169,92 +159,78 @@ elseif (strpos($text, '/order') === 0) {
         $serviceId = $parts[1];
         $playerId = $parts[2];
         
-        // Generate unique reference (timestamp + user_id + random)
+        // Generate unique reference
         $reference = time() . '_' . $userId . '_' . rand(1000, 9999);
         
-        // Place the order
+        // Place order
         $result = $megaApi->placeOrder($serviceId, $playerId, $reference);
         
-        if ($result['status'] === true && $result['code'] == 201) {
+        if ($result['status'] === true && isset($result['code']) && $result['code'] == 201) {
             $orderId = $result['orderid'];
             $price = $result['price'];
             
-            // Store order info for status checking
-            $userData[$userId]['last_order'] = $orderId;
-            $userData[$userId]['last_reference'] = $reference;
-            
             $message = "
-✅ <b>تم قبول الطلب بنجاح!</b>
+✅ <b>تم قبول الطلب!</b>
 
-📋 <b>تفاصيل الطلب:</b>
+📋 <b>التفاصيل:</b>
 🆔 رقم الطلب: <code>{$orderId}</code>
-🔗 الرقم المرجعي: <code>{$reference}</code>
-💰 السعر: <code>{$price} $</code>
-🎮 معرف اللاعب: <code>{$playerId}</code>
-📦 كود الخدمة: <code>{$serviceId}</code>
+💰 السعر: <code>{$price}$</code>
+🎮 اللاعب: <code>{$playerId}</code>
+📦 الخدمة: <code>{$serviceId}</code>
 
-⏳ <b>حالة الطلب:</b> جاري المعالجة...
 💡 <b>لفحص الحالة:</b>
 /status {$orderId}
             ";
         } else {
-            $errorCode = $result['code'] ?? 'Unknown';
-            $errorMsg = $result['message'] ?? 'خطأ غير معروف';
+            $code = $result['code'] ?? 'Unknown';
+            $msg = $result['message'] ?? 'خطأ غير معروف';
             
-            // Error code descriptions based on API documentation
+            // Error descriptions
             $errorDesc = '';
-            switch ($errorCode) {
+            switch ($code) {
                 case 401:
                     $errorDesc = "⚠️ بيانات الدخول غير صحيحة";
                     break;
                 case 405:
-                    $errorDesc = "⚠️ رصيدك غير كافي لتنفيذ هذا الطلب";
+                    $errorDesc = "⚠️ رصيد غير كافي";
                     break;
-                case 412:
-                    $errorDesc = "⚠️ الرقم المرجعي مكرر، حاول مرة أخرى";
+                case 412:                    $errorDesc = "⚠️ الرقم المرجعي مكرر";
                     break;
                 case 414:
                     $errorDesc = "⚠️ بيانات اللاعب غير صحيحة";
                     break;
                 case 409:
-                    $errorDesc = "⚠️ الخدمة غير متاحة حالياً";
+                    $errorDesc = "⚠️ الخدمة غير متاحة";
                     break;
                 case 415:
-                    $errorDesc = "⚠️ النظام تحت الصيانة، حاول لاحقاً";
+                    $errorDesc = "⚠️ النظام تحت الصيانة";
                     break;
-                default:
-                    $errorDesc = "⚠️ راجع التفاصيل أدناه";
             }
             
             $message = "
 ❌ <b>فشل الطلب!</b>
 
-🔴 <b>كود الخطأ:</b> <code>{$errorCode}</code>
-📝 <b>التفاصيل:</b> {$errorMsg}
+🔴 <b>كود الخطأ:</b> <code>{$code}</code>
+📝 <b>التفاصيل:</b> {$msg}
 {$errorDesc}
-
-💡 <b>للمساعدة:</b>
-- تأكد من صحة بيانات اللاعب
-- تأكد من وجود رصيد كافي
-- جرب استخدام كود خدمة مختلف
             ";
         }
         
         sendMessage($telegram, $chatId, $message);
     }
 }
+
 /**
- * Command: /status - Check Order Status
- * Format: /status <order_id>
+ * Command: /status
  */
 elseif (strpos($text, '/status') === 0) {
     $parts = explode(' ', trim($text));
     
     if (count($parts) < 2) {
         $message = "
-❌ <b>الرجاء إدخال رقم الطلب!</b>
+❌ <b>أدخل رقم الطلب!</b>
 
-📝 <b>طريقة الاستخدام:</b>
+📝 <b>الاستخدام:</b>
 /status <order_id>
 
 📌 <b>مثال:</b>
@@ -267,65 +243,41 @@ elseif (strpos($text, '/status') === 0) {
         
         if ($status['status'] === true) {
             $progress = $status['progress'] ?? 0;
-            $msg = $status['msg'] ?? '';
-            $result = $status['result'] ?? '';
+            $msg = $status['msg'] ?? '';            $result = $status['result'] ?? '';
             
-            // Progress status based on API documentation
-            $progressText = '';
-            $progressEmoji = '';
+            // Progress status
+            $progressInfo = [
+                1 => ['📥', 'تم استلام الطلب'],
+                2 => ['⚙️', 'جاري المعالجة'],
+                4 => ['✅', 'تم بنجاح'],
+                5 => ['❌', 'فشل / تم الاسترداد']
+            ];
             
-            switch ($progress) {
-                case 1:
-                    $progressEmoji = '📥';
-                    $progressText = 'تم استلام الطلب';
-                    break;
-                case 2:
-                    $progressEmoji = '⚙️';
-                    $progressText = 'جاري المعالجة';
-                    break;
-                case 4:
-                    $progressEmoji = '✅';
-                    $progressText = 'تم التنفيذ بنجاح';
-                    break;
-                case 5:
-                    $progressEmoji = '❌';
-                    $progressText = 'فشل الطلب / تم استرداد الرصيد';
-                    break;
-                default:
-                    $progressEmoji = '⏳';                    $progressText = 'حالة غير معروفة';
-            }
+            $emoji = $progressInfo[$progress][0] ?? '⏳';
+            $statusText = $progressInfo[$progress][1] ?? 'حالة غير معروفة';
             
             $message = "
 📋 <b>حالة الطلب:</b>
 
 🆔 رقم الطلب: <code>{$orderId}</code>
-{$progressEmoji} <b>الحالة:</b> {$progressText}
+{$emoji} <b>الحالة:</b> {$statusText}
 📝 <b>التفاصيل:</b> {$msg}
             ";
             
             if ($result && $progress == 4) {
                 $message .= "
 
-🎁 <b>نتيجة الشحن:</b>
+🎁 <b>النتيجة:</b>
 <code>{$result}</code>
                 ";
             }
-            
-            if ($progress == 2) {
-                $message .= "
-
-⏳ <i>جاري المعالجة... يمكنك فحص الحالة لاحقاً</i>
-                ";
-            }
         } else {
-            $errorCode = $status['code'] ?? 'Unknown';
+            $code = $status['code'] ?? 'Unknown';
             $message = "
-❌ <b>فشل في فحص حالة الطلب</b>
+❌ <b>فشل في فحص الحالة</b>
 
-🔴 كود الخطأ: <code>{$errorCode}</code>
-📝 التفاصيل: {$status['msg']}
-
-💡 تأكد من صحة رقم الطلب
+🔴 كود الخطأ: <code>{$code}</code>
+📝 {$status['msg']}
             ";
         }
         
@@ -334,74 +286,47 @@ elseif (strpos($text, '/status') === 0) {
 }
 
 /**
- * Command: /help - Show Help
+ * Command: /help
  */
 elseif ($text === '/help') {
     $message = "
 📚 <b>مركز المساعدة</b>
 
-🎮 <b>الأوامر المتاحة:</b>
-/start - البدء واستخدام البوت
-/services - عرض جميع الخدمات
-/balance - فحص رصيد الحساب
-/order - طلب خدمة جديدة
-/status - فحص حالة طلب
-/help - عرض هذه الرسالة
+🎮 <b>الأوامر:</b>/start - البدء
+/services - عرض الخدمات
+/balance - فحص الرصيد
+/order - طلب خدمة
+/status - فحص الحالة
+/help - المساعدة
 
-📝 <b>طريقة الطلب:</b>
-1. استخدم /services لعرض الخدمات
-2. انسخ كود الخدمة المطلوب
-3. استخدم /order <code><service_id></code> <code><player_id></code>
-4. انتظر تأكيد الطلب
-5. استخدم /status <code><order_id></code> لمتابعة الحالة
+📝 <b>كيفية الطلب:</b>
+1. /services لعرض الخدمات
+2. اختر الخدمة وانسخ كودها
+3. /order <code><service_id></code> <code><player_id></code>
+4. استخدم /status <code><order_id></code> للمتابعة
 
-⚠️ <b>ملاحظات مهمة:</b>
+⚠️ <b>ملاحظات:</b>
 - تأكد من صحة معرف اللاعب
 - تأكد من وجود رصيد كافي
-- احفظ رقم الطلب للمتابعة
-- الرقم المرجعي فريد لكل عملية
-
-🔗 <b>الدعم الفني:</b> @YourSupport
+- احفظ رقم الطلب
     ";
     
     sendMessage($telegram, $chatId, $message);
 }
 
 /**
- * Command: /test - Test API Connection (Admin Only)
- */
-elseif ($text === '/test') {
-    // You can add admin check here
-    $balance = $megaApi->getBalance();
-    $services = $megaApi->getServiceList();
-    
-    $message = "
-🔧 <b>اختبار الاتصال بالـ API</b>
-
-✅ <b>فحص الرصيد:</b>
-" . ($balance['status'] ? 'نجح' : 'فشل') . "
-
-✅ <b>فحص الخدمات:</b>
-" . ($services['status'] ? 'نجح' : 'فشل') . "
-
-📊 <b>عدد الخدمات:</b> " . (isset($services['ServiceList']) ? count($services['ServiceList']) : 0) . "
-    ";
-    
-    sendMessage($telegram, $chatId, $message);
-}
-
-/** * Unknown Command
+ * Unknown Command
  */
 else {
     $message = "
-❓ <b>أمر غير معروف!</b>
+❓ <b>أمر غير معروف</b>
 
-💡 <b>استخدم /help لعرض الأوامر المتاحة</b>
+💡 استخدم /help لعرض الأوامر
     ";
     
     sendMessage($telegram, $chatId, $message);
 }
 
-// Return 200 OK for webhook
+// Return 200 OK
 http_response_code(200);
 ?>
